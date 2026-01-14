@@ -1,14 +1,19 @@
-export default async function handler(req, res) {
+export const config = {
+  runtime: "edge",
+};
+
+export default async function handler(req) {
   if (req.method !== "POST") {
-    return res.status(405).json({ reply: "Méthode non autorisée" });
+    return new Response(
+      JSON.stringify({ reply: "Méthode non autorisée" }),
+      { status: 405 }
+    );
   }
 
   try {
-    const { message, history } = req.body;
-
-    if (!process.env.GROQ_API_KEY) {
-      return res.status(500).json({ reply: "Clé API manquante" });
-    }
+    const body = await req.json();
+    const message = body.message;
+    const history = body.history || [];
 
     const response = await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -26,10 +31,10 @@ export default async function handler(req, res) {
               content:
                 "Tu es un assistant professionnel de service client. Tu comprends et réponds dans toutes les langues."
             },
-            ...(history || []),
+            ...history,
             { role: "user", content: message }
           ],
-          temperature: 0.5
+          temperature: 0.4
         }),
       }
     );
@@ -37,14 +42,21 @@ export default async function handler(req, res) {
     const data = await response.json();
 
     if (!data.choices || !data.choices[0]) {
-      return res.status(500).json({ reply: "Aucune réponse de l'IA" });
+      return new Response(
+        JSON.stringify({ reply: "Aucune réponse IA" }),
+        { status: 500 }
+      );
     }
 
-    return res.status(200).json({
-      reply: data.choices[0].message.content
-    });
+    return new Response(
+      JSON.stringify({ reply: data.choices[0].message.content }),
+      { status: 200 }
+    );
 
-  } catch (error) {
-    return res.status(500).json({ reply: "Erreur serveur backend" });
+  } catch (e) {
+    return new Response(
+      JSON.stringify({ reply: "Erreur serveur" }),
+      { status: 500 }
+    );
   }
 }
